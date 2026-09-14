@@ -38,12 +38,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 
-RUN test -n "${SOURCE_COMMIT}" \\
-    && git init tortoise-wow \\
-    && cd tortoise-wow \\
-    && git remote add origin "${SOURCE_REPO}" \\
-    && git fetch --depth 1 origin "${SOURCE_COMMIT}" \\
-    && git checkout --detach FETCH_HEAD \\
+RUN test -n "${SOURCE_COMMIT}" \
+    && git init tortoise-wow \
+    && cd tortoise-wow \
+    && git remote add origin "${SOURCE_REPO}" \
+    && git fetch --depth 1 origin "${SOURCE_COMMIT}" \
+    && git checkout --detach FETCH_HEAD \
     && git submodule update --init --recursive --depth 1
 
 WORKDIR /src/tortoise-wow
