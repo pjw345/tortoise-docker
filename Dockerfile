@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Tortoise WoW (Shyalya/tortoise-wow) — Ubuntu 22.04 build for GHCR + compose.
+# Tortoise WoW (pjw345/tortoise-wow) — Ubuntu 22.04 build for GHCR + compose.
 # Build-arg BUILD_PLAYERBOTS controls whether the playerbots module is compiled in.
 
 ARG UBUNTU_VERSION=22.04
@@ -11,8 +11,9 @@ FROM ubuntu:${UBUNTU_VERSION} AS builder
 
 ARG BUILD_PLAYERBOTS=ON
 ARG USE_EXTRACTORS=OFF
-ARG SOURCE_REPO=https://github.com/Shyalya/tortoise-wow.git
-ARG SOURCE_REF=playerbots-integration-gh
+ARG SOURCE_REPO=https://github.com/pjw345/tortoise-wow.git
+ARG SOURCE_REF=playerbots-development
+ARG SOURCE_COMMIT=f2df1b6aff7ea589db4682836d7652ada77f9377
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG BUILD_JOBS=2
@@ -37,7 +38,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 
-RUN git clone --depth 1 --branch "${SOURCE_REF}" "${SOURCE_REPO}" tortoise-wow
+RUN test -n "${SOURCE_COMMIT}" \\
+    && git init tortoise-wow \\
+    && cd tortoise-wow \\
+    && git remote add origin "${SOURCE_REPO}" \\
+    && git fetch --depth 1 origin "${SOURCE_COMMIT}" \\
+    && git checkout --detach FETCH_HEAD \\
+    && git submodule update --init --recursive --depth 1
 
 WORKDIR /src/tortoise-wow
 
@@ -60,6 +67,7 @@ RUN cmake -B build \
         -DBUILD_PLAYERBOTS="${BUILD_PLAYERBOTS}" \
         -DUSE_EXTRACTORS="${USE_EXTRACTORS}" \
         -DALLOW_TURTLE_ADDONS=ON \
+        -DBUILD_ELUNA_TESTS=OFF \
     && if [ "${EXTRACTORS_ONLY}" = "ON" ]; then \
          cmake --build build -j"${BUILD_JOBS}" --target mapextractor vmapextractor vmap_assembler MoveMapGen \
          && mkdir -p /opt/turtle/bin \
@@ -89,10 +97,12 @@ FROM ubuntu:${UBUNTU_VERSION} AS runtime
 ARG BUILD_PLAYERBOTS=ON
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG CPU_TARGET=x86-64-v2
+ARG SOURCE_COMMIT=f2df1b6aff7ea589db4682836d7652ada77f9377
 
 LABEL org.opencontainers.image.title="tortoise-docker" \
       org.opencontainers.image.description="Turtle WoW / Tortoise server (realmd + mangosd)" \
-      org.opencontainers.image.source="https://github.com/Shyalya/tortoise-wow" \
+      org.opencontainers.image.source="https://github.com/pjw345/tortoise-wow" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}" \
       org.opencontainers.image.licenses="GPL-2.0" \
       org.opencontainers.image.cpu.target="${CPU_TARGET}"
 
