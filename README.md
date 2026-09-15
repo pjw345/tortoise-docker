@@ -1,8 +1,8 @@
 # Tortoise WoW (Docker)
 
-# Safety tip: as this repo get rebuilt regularly based on original Shyalya's work, things may break, backup everything before you update!
+> **Important:** This repository pins the server source to a tested commit. Create a full database backup before changing the image or source commit.
 
-Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker. This stack uses [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow) with playerbots.
+Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker. This stack builds the pinned [pjw345/tortoise-wow](https://github.com/pjw345/tortoise-wow) Playerbot source, based on [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow).
 
 The server work and install steps come from this video:
 
@@ -24,7 +24,7 @@ The images do not include client data. You extract that data from your game clie
 ### 1. Get the Compose files
 
 ```bash
-git clone https://github.com/kasperfriend/tortoise-docker
+git clone https://github.com/pjw345/tortoise-docker
 cd tortoise-docker
 ```
 
@@ -39,7 +39,7 @@ Edit `.env`:
 1. Set strong values for `DB_ROOT_PASSWORD` and `DB_PASSWORD`.
 2. Set `REALM_ADDRESS` to an address your game client can reach.
 3. Set `DATA_PATH` if your client data is not in `./data`.
-4. IMPORTANT: AI_MIN_RANDOM_BOTS=10 and AI_MAX_RANDOM_BOTS=10 in .env may override .conf file, to be safe - just match numbers in those two files, so amount is same in both files
+4. Set `AI_MIN_RANDOM_BOTS` and `AI_MAX_RANDOM_BOTS` in `.env`. These values are rendered into the server configuration when the container starts.
 
 Use `127.0.0.1` for `REALM_ADDRESS` only when the client runs on the same machine. For another PC on your LAN, use your host LAN IP.
 
@@ -55,7 +55,7 @@ data/
   mmaps/
 ```
 
-### 4. Start with Compose(or use script)
+### 4. Start with Compose (or use the script)
 
 Compose pulls the published images and starts the stack:
 
@@ -83,7 +83,7 @@ The first start with playerbots is slow. The server builds bot gear data before 
 
 ### 5. Create a game account
 
-Prefferably - use script create-account.cmd, it will guide you, or:
+Preferably, use `create-account.cmd`, which will guide you, or:
 
 ```bash
 docker compose exec -u turtle mangosd bash -c 'echo "account create myuser mypass" > /opt/turtle/run/mangosd.in'
@@ -109,7 +109,7 @@ Use the same host as `REALM_ADDRESS` in `.env`. Then log in with the account you
 
 ### Optional 7. Updating the server
 
-The server gets rebuilt every day, but your local copy stays on your PC. Use update-server.cmd to backup and update everything, recommended once in a week\two
+Images are published only after a deliberate repository update or manual workflow run. Create a full database backup and verify the target image before updating an existing server.
 
 ### CPU compatibility and local builds
 
@@ -190,7 +190,8 @@ Volume names can include your Compose project name. Use `docker volume ls` to co
 ## Credits
 
 - Setup walkthrough: [YouTube video](https://www.youtube.com/watch?v=CNgkHs3btNE)
-- Server source: [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
-- Install notes: [INSTALL-LINUX.md](https://github.com/Shyalya/tortoise-wow/blob/playerbots-integration-gh/INSTALL-LINUX.md)
+- Tested server source: [pjw345/tortoise-wow at f2df1b6](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377)
+- Upstream server project: [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
+- Install notes: [INSTALL-LINUX.md](https://github.com/pjw345/tortoise-wow/blob/f2df1b6aff7ea589db4682836d7652ada77f9377/INSTALL-LINUX.md)
 
 Server code stays under the upstream project license. This repository only provides the Docker packaging.

@@ -66,6 +66,9 @@ fi
 if [[ -f "${ETC}/ahbot.conf.dist" ]]; then
   ensure_conf "${ETC}/ahbot.conf.dist" "${ETC}/ahbot.conf"
 fi
+if [[ -f "${ETC}/anticheat.conf.dist" ]]; then
+  ensure_conf "${ETC}/anticheat.conf.dist" "${ETC}/anticheat.conf"
+fi
 
 # mangosd
 set_conf "${ETC}/mangosd.conf" "LoginDatabase.Info" "\"$(DB_INFO "${DB_LOGIN}")\""
@@ -79,7 +82,10 @@ set_conf "${ETC}/mangosd.conf" "BindIP" "\"${BIND_IP}\""
 set_conf "${ETC}/mangosd.conf" "RealmID" "${REALM_ID}"
 set_conf "${ETC}/mangosd.conf" "LogSQL" "${LOG_SQL}"
 set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Enabled" "${AUTO_UPDATE}"
-set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Path" "\"${SQL_DIR}/\""
+set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Path" "\"${SQL_DIR}/database_updates/\""
+set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.AuthUpdateName" "\"auth\""
+set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.CharUpdateName" "\"character\""
+set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.WorldUpdateName" "\"world\""
 set_conf "${ETC}/mangosd.conf" "LFT.BotFill.Enable" "${LFT_BOTFILL}"
 set_conf "${ETC}/mangosd.conf" "SoloDungeonRepopAlive.Enable" "${SOLO_DUNGEON_REPOP}"
 set_conf "${ETC}/mangosd.conf" "Leech.Enable" "${LEECH_ENABLE}"
