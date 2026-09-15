@@ -1,27 +1,57 @@
-# Tortoise WoW (Docker)
+# Tortoise WoW with Playerbots (Docker)
 
-> **Important:** This repository pins the server source to a tested commit. Create a full database backup before changing the image or source commit.
+> **Important:** This repository pins the server source to a tested commit. Always create a full database backup before changing the image or source commit.
 
-Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker. This stack builds the pinned [pjw345/tortoise-wow](https://github.com/pjw345/tortoise-wow) Playerbot source, based on [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow).
+Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker, with optional Playerbot support.
 
-The server work and install steps come from this video:
+This repository maintains the Docker packaging, database initialisation and deployment configuration needed to build and run a tested version of the server.
 
-**[Tortoise WoW / playerbots Docker setup (YouTube)](https://youtu.be/BFJes1sIi6c)**
+## Project lineage
 
-This repository ships a Compose file. CI builds and publishes the server images to GHCR. The published binaries use a portable x86-64-v2 CPU target so the image does not depend on the instruction set of the CI runner.
+This project builds on the work of several related projects:
 
-## What you need
+### Docker packaging
 
-- Docker Desktop (or Docker Engine with Compose v2)
-- A Turtle WoW **1.18.1** client (**build 7272**)
-- Client data folders: `dbc`, `maps`, `vmaps`, `mmaps`
-- Several GB of free disk space
+* [Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker) created the original Docker and Compose project.
+* [kasperfriend/tortoise-docker](https://github.com/kasperfriend/tortoise-docker) extended that work with updated builds, Playerbot support, configuration files and Windows helper scripts.
+* This repository, [pjw345/tortoise-docker](https://github.com/pjw345/tortoise-docker), was created from Kasperfriend’s fork and now maintains a pinned, tested and reproducible deployment.
 
-The images do not include client data. You extract that data from your game client. The video shows how to get them.
+### Server and Playerbot source
+
+* [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow) is the active Tortoise server project.
+* [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow) integrated Playerbots with the Tortoise server.
+* [pjw345/tortoise-wow](https://github.com/pjw345/tortoise-wow) preserves the tested integration source used by this Docker project.
+* The Playerbot implementation originates from [cmangos/playerbots](https://github.com/cmangos/playerbots).
+
+The currently published images build the server from the pinned commit [`f2df1b6`](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377).
+
+The setup process is demonstrated in this walkthrough:
+
+**[Easiest Automated TurtleWoW 1.18.1 Server with Bots Tutorial](https://youtu.be/BFJes1sIi6c)**
+
+## Published images
+
+GitHub Actions builds and publishes two image variants:
+
+| Variant             | Image                                       |
+| ------------------- | ------------------------------------------- |
+| Playerbots enabled  | `ghcr.io/pjw345/tortoise-docker:playerbots` |
+| Playerbots disabled | `ghcr.io/pjw345/tortoise-docker:no-bots`    |
+
+The published binaries use the portable `x86-64-v2` CPU target, so they do not depend on the instruction set of the GitHub Actions runner that compiled them.
+
+## Requirements
+
+* Docker Desktop, or Docker Engine with Compose v2
+* A Turtle WoW **1.18.1** client using **build 7272**
+* Extracted client data folders: `dbc`, `maps`, `vmaps` and `mmaps`
+* Several gigabytes of free disk space
+
+The Docker images do not contain client data. You must extract these folders from your own game client.
 
 ## Quick start
 
-### 1. Get the Compose files
+### 1. Download the project
 
 ```bash
 git clone https://github.com/pjw345/tortoise-docker
@@ -30,22 +60,36 @@ cd tortoise-docker
 
 ### 2. Create your settings file
 
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On Linux or macOS:
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Open `.env` and configure at least:
 
-1. Set strong values for `DB_ROOT_PASSWORD` and `DB_PASSWORD`.
-2. Set `REALM_ADDRESS` to an address your game client can reach.
-3. Set `DATA_PATH` if your client data is not in `./data`.
-4. Set `AI_MIN_RANDOM_BOTS` and `AI_MAX_RANDOM_BOTS` in `.env`. These values are rendered into the server configuration when the container starts.
+1. `DB_ROOT_PASSWORD`
+2. `DB_PASSWORD`
+3. `REALM_ADDRESS`
+4. `DATA_PATH`
+5. `AI_MIN_RANDOM_BOTS`
+6. `AI_MAX_RANDOM_BOTS`
 
-Use `127.0.0.1` for `REALM_ADDRESS` only when the client runs on the same machine. For another PC on your LAN, use your host LAN IP.
+Use strong, different values for `DB_ROOT_PASSWORD` and `DB_PASSWORD`.
 
-### 3. Add client data
+Use `127.0.0.1` for `REALM_ADDRESS` only when the game client runs on the same computer as the server. If the client runs on another computer, use an address that computer can reach, such as the server’s LAN IP address.
 
-Put the extracted folders here (or under your `DATA_PATH`):
+The bot-count values in `.env` are rendered into the Playerbot configuration whenever the container starts.
+
+### 3. Add the client data
+
+Place the extracted folders under `data`, or the directory selected by `DATA_PATH`:
 
 ```text
 data/
@@ -55,49 +99,84 @@ data/
   mmaps/
 ```
 
-### 4. Start with Compose (or use the script)
+### 4. Start the server
 
-Compose pulls the published images and starts the stack:
+On Windows, you can use:
+
+```powershell
+.\start-server.cmd
+```
+
+Alternatively, start it directly with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
-You can always feel free to start the server using start-server.cmd
 
-The first start downloads the images (if needed) and imports the world database. This takes several minutes. This may take up to 20 minutes, if seem stuck, open powershell in server folder and run: docker compose logs --tail=20 mangosd, and see if it still INSERTs - if yes, wait more, if there are many different messages - proceed
+Check the container state:
 
-Then watch the world server:
+```bash
+docker compose ps -a
+```
+
+On the first start, the database container creates and imports the server databases. Check its progress with:
+
+```bash
+docker compose logs -f db-init
+```
+
+Wait for:
+
+```text
+Database init complete.
+```
+
+Press `Ctrl+C` to leave the log viewer. This does not stop the containers.
+
+Now follow the world-server startup:
 
 ```bash
 docker compose logs -f mangosd
 ```
 
-Wait until the log shows:
+The first Playerbot startup can take considerably longer than later starts because the server builds its bot equipment cache. Large numbers of statements involving `ai_playerbot_equip_cache` are expected during this process.
+
+Do not create an account until the log shows:
 
 ```text
 World server is up and running
 ```
-This message may drown in stream of messages if you waited too long. I recommend giving it 20 minutes at first start, and then just start creating accounts. If it breaks - this may mean that server is still working with database
 
-The first start with playerbots is slow. The server builds bot gear data before it is ready. Do not create an account before that line appears.
+If the message has scrolled out of view, check for it with PowerShell:
+
+```powershell
+docker compose logs mangosd |
+    Select-String -Pattern 'World server is up and running'
+```
 
 ### 5. Create a game account
 
-Preferably, use `create-account.cmd`, which will guide you, or:
+On Windows, the recommended method is:
+
+```powershell
+.\create-account.cmd
+```
+
+Alternatively, send the command directly to the world-server console:
 
 ```bash
 docker compose exec -u turtle mangosd bash -c 'echo "account create myuser mypass" > /opt/turtle/run/mangosd.in'
 ```
 
-Check that the account exists:
+You can verify that the account exists with:
 
 ```bash
 docker compose exec -T db mariadb -uroot -pYOUR_ROOT_PASSWORD -e "SELECT id, username FROM tw_logon.account;"
 ```
 
-Replace `YOUR_ROOT_PASSWORD` with the value of `DB_ROOT_PASSWORD` from `.env`.
+Replace `YOUR_ROOT_PASSWORD` with the `DB_ROOT_PASSWORD` value from `.env`.
 
-### 6. Connect with the client
+### 6. Connect with the game client
 
 Edit `realmlist.wtf` in your Turtle WoW client:
 
@@ -105,93 +184,173 @@ Edit `realmlist.wtf` in your Turtle WoW client:
 set realmlist 127.0.0.1
 ```
 
-Use the same host as `REALM_ADDRESS` in `.env`. Then log in with the account you created.
+Use the same reachable host configured as `REALM_ADDRESS`.
 
-### Optional 7. Updating the server
+You can then start the client and sign in using the account you created.
 
-Images are published only after a deliberate repository update or manual workflow run. Create a full database backup and verify the target image before updating an existing server.
+## Configuration files
 
-### CPU compatibility and local builds
+The tracked files under `config` use the `.conf.dist` suffix. These are the configuration templates supplied by the repository.
 
-If an older published image exits with code 132 (`SIGILL`), rebuild it locally with the same portable target and select it with `TURTLE_IMAGE`:
+When a container starts, it creates the corresponding local `.conf` file if one does not already exist. Existing `.conf` files are preserved, allowing local settings to survive container recreation and image updates.
+
+Generated `.conf` files are intentionally excluded from Git.
+
+Where a setting is exposed through `.env`, the startup scripts render its current value into the generated configuration.
+
+## Useful settings
+
+| Setting                |                 Default | Meaning                                                           |
+| ---------------------- | ----------------------: | ----------------------------------------------------------------- |
+| `REALM_ADDRESS`        |             `127.0.0.1` | Address the game client uses to reach the server                  |
+| `REALM_NAME`           |             `TurtleWoW` | Realm name displayed by the client                                |
+| `DATA_PATH`            |                `./data` | Directory containing the extracted client data                    |
+| `TAG`                  |            `playerbots` | Published image variant: `playerbots` or `no-bots`                |
+| `TURTLE_IMAGE`         | Image selected by `TAG` | Optional complete image reference, including locally built images |
+| `AI_PLAYERBOT_ENABLED` |                     `1` | Enables or disables Playerbots                                    |
+| `AI_MIN_RANDOM_BOTS`   |                    `10` | Minimum number of random bots                                     |
+| `AI_MAX_RANDOM_BOTS`   |                    `10` | Maximum number of random bots                                     |
+
+Keep the bot count low for the first startup. After the initial cache has been created, adjust the values in `.env` and recreate `mangosd`:
+
+```bash
+docker compose up -d --force-recreate mangosd
+```
+
+## Common commands
+
+Show the container status:
+
+```bash
+docker compose ps -a
+```
+
+Follow the database initialisation log:
+
+```bash
+docker compose logs -f db-init
+```
+
+Follow the authentication-server log:
+
+```bash
+docker compose logs -f realmd
+```
+
+Follow the world-server log:
+
+```bash
+docker compose logs -f mangosd
+```
+
+Stop the running containers without removing them:
+
+```bash
+docker compose stop
+```
+
+Start the containers again:
+
+```bash
+docker compose up -d
+```
+
+Stop and remove the containers while retaining the database volumes:
+
+```bash
+docker compose down
+```
+
+## Backups and updates
+
+Always create a complete database backup before updating an existing installation.
+
+Published images are built only following a deliberate repository update or a manually triggered GitHub Actions workflow. They are not automatically rebuilt from a moving upstream branch.
+
+Before updating:
+
+1. Back up all databases.
+2. Confirm which image and source commit will be used.
+3. Stop `mangosd` and `realmd`.
+4. Pull and test the new image.
+5. Retain the previous database volume and backup until the updated server has been verified.
+
+Database migrations may be applied automatically when a newer server image starts. Do not update an important installation without a recoverable backup.
+
+## Resetting the database
+
+> **Warning:** This permanently deletes the project’s accounts, characters, world database and initialisation marker.
+
+Confirm that you are operating on the correct Compose project before running:
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+Do not use this procedure when updating an existing installation or attempting to preserve characters.
+
+## CPU compatibility and local builds
+
+If an image exits with code `132` (`SIGILL`), build it locally with the portable CPU target:
 
 ```bash
 docker build \
   --build-arg BUILD_PLAYERBOTS=ON \
   --build-arg CPU_TARGET=x86-64-v2 \
   -t tortoise-wow:playerbots-local .
+```
+
+Select the local image when starting Compose:
+
+```bash
 TURTLE_IMAGE=tortoise-wow:playerbots-local docker compose up -d
 ```
 
-The `TURTLE_IMAGE` override is optional; without it, Compose uses the published image selected by `TAG`.
+On Windows PowerShell:
 
-## Useful settings
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `REALM_ADDRESS` | `127.0.0.1` | Host the client uses to reach the world server |
-| `REALM_NAME` | `TurtleWoW` | Name of the realm in the client list |
-| `DATA_PATH` | `./data` | Folder with `dbc`, `maps`, `vmaps`, `mmaps` |
-| `TAG` | `playerbots` | Image variant (`playerbots` or `no-bots`) |
-| `TURTLE_IMAGE` | published image from `TAG` | Optional full image reference, useful for a local build |
-| `AI_PLAYERBOT_ENABLED` | `1` | Turn bots on or off (`playerbots` image only) |
-| `AI_MIN_RANDOM_BOTS` / `AI_MAX_RANDOM_BOTS` | `10` / `10` | How many random bots to keep online |
-
-Keep bot counts low for the first start. Raise them later in `.env`, then run:
-
-```bash
-docker compose up -d mangosd
-```
-
-## Common commands
-
-View logs:
-
-```bash
-docker compose logs -f realmd
-docker compose logs -f mangosd
-```
-
-Stop the stack:
-
-```bash
-docker compose down
-```
-
-Start again (keeps your database):
-
-```bash
+```powershell
+$env:TURTLE_IMAGE = 'tortoise-wow:playerbots-local'
 docker compose up -d
 ```
 
-Reset the database (deletes characters and accounts):
+Remove the temporary PowerShell environment override afterward with:
 
-```bash
-docker compose down
-docker volume ls
-docker volume rm tortoise-docker_db-data tortoise-docker_init-marker
-docker compose up -d
+```powershell
+Remove-Item Env:TURTLE_IMAGE
 ```
-
-Volume names can include your Compose project name. Use `docker volume ls` to confirm the names.
 
 ## Troubleshooting
 
-| Problem | What to do |
-|---|---|
-| Login fails / unknown account | Wait for `World server is up and running`, then create the account again |
-| Account create does nothing | mangosd is still starting; wait and retry |
-| Realm list is empty or offline | Check that `realmd` and `mangosd` are up: `docker compose ps` |
-| Client hangs after you pick the realm | Set `REALM_ADDRESS` to an IP the client can reach; world port is `8090` |
-| Empty world / no NPCs | First database import failed; check `docker compose logs db-init` |
-| No bots | Use `TAG=playerbots` and `AI_PLAYERBOT_ENABLED=1` |
-| Client crash: interface corrupt | Use the published image from this project; do not strip Turtle addons |
+| Problem                                   | What to check                                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Login fails or the account is unknown     | Wait for `World server is up and running`, then create or verify the account                          |
+| Account creation does nothing             | `mangosd` may still be starting; check its logs and retry once it is ready                            |
+| Realm list is empty or offline            | Run `docker compose ps -a` and confirm both `realmd` and `mangosd` are running                        |
+| Client hangs after selecting the realm    | Confirm that `REALM_ADDRESS` is reachable from the client and that port `8090` is available           |
+| World is empty or NPCs are missing        | Check `docker compose logs db-init` for an incomplete database import                                 |
+| Database migration fails                  | Stop `mangosd`, retain the database and inspect the complete migration error before changing any data |
+| Playerbots are unavailable                | Use the `playerbots` image and set `AI_PLAYERBOT_ENABLED=1`                                           |
+| First startup produces many cache inserts | This is expected while Playerbot equipment data is generated                                          |
+| Client reports a corrupt interface        | Use the expected Turtle WoW client and do not remove required Turtle addons                           |
 
 ## Credits
 
-- Setup walkthrough: [YouTube video](https://www.youtube.com/watch?v=CNgkHs3btNE)
-- Tested server source: [pjw345/tortoise-wow at f2df1b6](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377)
-- Upstream server project: [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
-- Install notes: [INSTALL-LINUX.md](https://github.com/pjw345/tortoise-wow/blob/f2df1b6aff7ea589db4682836d7652ada77f9377/INSTALL-LINUX.md)
+This project would not exist without the work of the following projects and contributors:
 
-Server code stays under the upstream project license. This repository only provides the Docker packaging.
+* Original Docker and Compose project: [Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)
+* Docker and Playerbot deployment work used as the basis of this fork: [kasperfriend/tortoise-docker](https://github.com/kasperfriend/tortoise-docker)
+* Setup walkthrough: [Easiest Automated TurtleWoW 1.18.1 Server with Bots Tutorial](https://youtu.be/BFJes1sIi6c)
+* Active Tortoise server project: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
+* Tortoise and Playerbot integration: [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
+* Playerbot project: [cmangos/playerbots](https://github.com/cmangos/playerbots)
+* Tested integration source: [pjw345/tortoise-wow at `f2df1b6`](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377)
+* Installation notes for the tested source: [INSTALL-LINUX.md](https://github.com/pjw345/tortoise-wow/blob/f2df1b6aff7ea589db4682836d7652ada77f9377/INSTALL-LINUX.md)
+
+All original copyright notices and project licences remain applicable.
+
+This repository maintains the Docker packaging and deployment integration. The server and Playerbot source remain governed by their respective upstream licences.
+
+## Disclaimer
+
+This is an unofficial community project. It is not affiliated with or endorsed by Turtle WoW, Blizzard Entertainment or Microsoft.
