@@ -31,15 +31,88 @@ mysql_root() {
   mysql -h"${DB_HOST}" -P"${DB_PORT}" -uroot -p"${DB_ROOT_PASSWORD}" --protocol=TCP "$@"
 }
 
+prepare_migrations_table() {
+  local database="$1"
+
+  mysql_root "${database}" <<'SQL'
+CREATE TABLE IF NOT EXISTS `migrations` (
+  `Id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `Name` VARCHAR(255) NOT NULL DEFAULT '0' COLLATE 'utf8_general_ci',
+  `Module` VARCHAR(255) NOT NULL DEFAULT '' COLLATE 'utf8_general_ci',
+  `Hash` VARCHAR(128) NOT NULL DEFAULT '0' COLLATE 'utf8_general_ci',
+  `AppliedAt` DATETIME NOT NULL,
+  PRIMARY KEY (`Id`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8_general_ci;
+
+ALTER TABLE `migrations`
+  ADD COLUMN IF NOT EXISTS `Module`
+  VARCHAR(255) NOT NULL DEFAULT '' COLLATE 'utf8_general_ci'
+  AFTER `Name`;
+SQL
+
+  mysql_root "${database}" -e "DELETE FROM migrations WHERE Module = '';"
+}
+
+apply_migrations() {
+  local database="$1"
+  local label="$2"
+  shift 2
+  local files=("$@")
+
+  if [[ "${#files[@]}" -eq 0 ]]; then
+    echo "No ${label} migration files found." >&2
+    exit 1
+  fi
+
+  prepare_migrations_table "${database}"
+
+  echo "Applying ${#files[@]} ${label} migrations..."
+
+  for f in "${files[@]}"; do
+    local name
+    local hash
+    local filtered_sql
+
+    name="$(basename "${f}" .sql)"
+    hash="$(sha1sum "${f}" | awk '{ print toupper($1) }')"
+    filtered_sql="$(mktemp)"
+
+    # The supplied base dumps already contain some rows introduced by older
+    # migrations, but their migrations ledger is empty. INSERT IGNORE retains
+    # existing base rows while still inserting missing rows from multi-row
+    # migration statements. Any other SQL error remains fatal.
+    sed -E \
+      's/^([[:space:]]*)INSERT INTO/\1INSERT IGNORE INTO/' \
+      "${f}" > "${filtered_sql}"
+
+    echo "  -> ${name}"
+
+    if ! mysql_root "${database}" < "${filtered_sql}"; then
+      rm -f "${filtered_sql}"
+      echo "Migration ${name} failed for ${database}." >&2
+      exit 1
+    fi
+
+    rm -f "${filtered_sql}"
+
+    mysql_root "${database}" -e "
+      INSERT INTO migrations (Name, Module, Hash, AppliedAt)
+      VALUES ('${name}', '', '${hash}', NOW());
+    "
+  done
+}
+
 echo "Waiting for MariaDB at ${DB_HOST}:${DB_PORT}..."
 for i in $(seq 1 90); do
   if mysql_root -e "SELECT 1" &>/dev/null; then
     break
   fi
+
   if [[ "${i}" -eq 90 ]]; then
     echo "MariaDB did not become ready in time." >&2
     exit 1
   fi
+
   sleep 2
 done
 echo "MariaDB is ready."
@@ -57,13 +130,12 @@ fi
 echo "Creating databases and base schemas..."
 mysql_root < "${SQL_ROOT}/create_databases.sql"
 
-# BackupCharacterInventory copies rows with INSERT ... SELECT * and therefore
-# requires a structurally identical snapshot table in the character database.
 character_inventory_copy_sql="${SQL_ROOT}/character-inventory-copy.sql"
 if [[ ! -f "${character_inventory_copy_sql}" ]]; then
   echo "Missing ${character_inventory_copy_sql}" >&2
   exit 1
 fi
+
 echo "Ensuring character_inventory_copy exists..."
 mysql_root "${DB_CHAR}" < "${character_inventory_copy_sql}"
 
@@ -80,54 +152,85 @@ SQL
 
 echo "Importing world content from sql/base (this can take several minutes)..."
 shopt -s nullglob
+
 base_files=("${SQL_ROOT}"/base/*.sql)
 if [[ "${#base_files[@]}" -eq 0 ]]; then
   echo "No SQL files found under ${SQL_ROOT}/base" >&2
   exit 1
 fi
+
 for f in "${base_files[@]}"; do
   echo "  -> $(basename "${f}")"
   mysql_root "${DB_WORLD}" < "${f}"
 done
 
-echo "Applying database_updates with --force (duplicate keys expected)..."
-update_files=("${SQL_ROOT}"/database_updates/*.sql)
-for f in "${update_files[@]}"; do
-  echo "  -> $(basename "${f}")"
-  mysql_root --force "${DB_WORLD}" < "${f}" || true
-done
-
-# AutoUpdater keys applied rows by file SHA1 (not by name). Hash 'manual'
-# never matches, so mangosd would retry every update and die on duplicates.
-echo "Recording migrations as applied (SHA1 hashes)..."
-mysql_root -e "DELETE FROM ${DB_WORLD}.migrations;"
-for f in "${update_files[@]}"; do
-  n="$(basename "${f}" .sql)"
-  h="$(sha1sum "${f}" | awk '{ print toupper($1) }')"
-  mysql_root -e "INSERT INTO ${DB_WORLD}.migrations (Name, Hash, AppliedAt) VALUES ('${n}','${h}',NOW());"
-done
-
-# Verify a known schema change from migrations landed.
-col_count="$(mysql_root -N -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='${DB_WORLD}' AND TABLE_NAME='spell_template' AND COLUMN_NAME='script_name';")"
-if [[ "${col_count}" != "1" ]]; then
-  echo "WARNING: spell_template.script_name not found after migrations (got count=${col_count})." >&2
-fi
-
-# Playerbot tables (only when this image was built with BUILD_PLAYERBOTS=ON)
 normalized="$(echo "${PLAYERBOTS_BUILT}" | tr '[:lower:]' '[:upper:]')"
 if [[ "${normalized}" == "ON" || "${normalized}" == "1" || "${normalized}" == "TRUE" ]]; then
   PB_SQL="${SQL_ROOT}/playerbots"
-  if [[ -d "${PB_SQL}" ]]; then
-    echo "Importing playerbots world SQL..."
-    cat "${PB_SQL}"/world/*.sql "${PB_SQL}"/world/classic/*.sql | mysql_root "${DB_WORLD}"
-    echo "Importing playerbots characters SQL..."
-    cat "${PB_SQL}"/characters/*.sql | mysql_root "${DB_CHAR}"
-  else
+
+  if [[ ! -d "${PB_SQL}" ]]; then
     echo "PLAYERBOTS_BUILT=${PLAYERBOTS_BUILT} but ${PB_SQL} is missing." >&2
     exit 1
   fi
+
+  echo "Importing playerbots world SQL..."
+  cat "${PB_SQL}"/world/*.sql \
+      "${PB_SQL}"/world/classic/*.sql |
+    mysql_root "${DB_WORLD}"
+
+  echo "Importing playerbots characters SQL..."
+  cat "${PB_SQL}"/characters/*.sql |
+    mysql_root "${DB_CHAR}"
 else
   echo "Skipping playerbots SQL (PLAYERBOTS_BUILT=${PLAYERBOTS_BUILT})."
+fi
+
+character_update_files=(
+  "${SQL_ROOT}"/database_updates/character/*.sql
+)
+world_update_files=(
+  "${SQL_ROOT}"/database_updates/world/*.sql
+)
+
+apply_migrations \
+  "${DB_CHAR}" \
+  "character" \
+  "${character_update_files[@]}"
+
+apply_migrations \
+  "${DB_WORLD}" \
+  "world" \
+  "${world_update_files[@]}"
+
+script_name_count="$(
+  mysql_root -N "${DB_WORLD}" -e "
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = '${DB_WORLD}'
+      AND TABLE_NAME = 'spell_template'
+      AND COLUMN_NAME = 'script_name';
+  "
+)"
+
+if [[ "${script_name_count}" != "1" ]]; then
+  echo "spell_template.script_name is missing after migrations." >&2
+  exit 1
+fi
+
+unique_index_count="$(
+  mysql_root -N "${DB_CHAR}" -e "
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = '${DB_CHAR}'
+      AND TABLE_NAME = 'ai_playerbot_random_bots'
+      AND INDEX_NAME = 'uq_owner_bot_event'
+      AND NON_UNIQUE = 0;
+  "
+)"
+
+if [[ "${unique_index_count}" != "3" ]]; then
+  echo "uq_owner_bot_event was not created correctly." >&2
+  exit 1
 fi
 
 echo "Inserting realmlist row..."

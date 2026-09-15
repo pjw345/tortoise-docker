@@ -1,10 +1,10 @@
 # Example stack: MariaDB + one-shot DB init + realmd + mangosd
 # Copy .env.example to .env and set secrets before starting.
-# Image: ghcr.io/kasperfriend/tortoise-docker — override tag with TAG=no-bots if needed.
+# Image: ghcr.io/pjw345/tortoise-docker — override tag with TAG=no-bots if needed.
 
 # Override TURTLE_IMAGE with a locally built image when needed. Published
 # images use the portable CPU target configured by Dockerfile/CI.
-x-turtle-image: &turtle-image ${TURTLE_IMAGE:-ghcr.io/kasperfriend/tortoise-docker:${TAG:-playerbots}}
+x-turtle-image: &turtle-image ${TURTLE_IMAGE:-ghcr.io/pjw345/tortoise-docker:${TAG:-playerbots}}
 
 services:
   db:
@@ -66,7 +66,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       DB_LOGIN: ${DB_LOGIN:-tw_logon}
       REALM_PORT: ${REALM_PORT:-3724}
-      BIND_IP: "0.0.0.0"
+      BIND_IP: "${GAME_BIND_IP:-0.0.0.0}"
     ports:
       - "${REALM_PORT:-3724}:3724"
     command: ["realmd"]
@@ -91,7 +91,7 @@ services:
       DATA_DIR: /opt/turtle/data
       WORLD_PORT: ${WORLD_PORT:-8090}
       REALM_ID: ${REALM_ID:-1}
-      BIND_IP: "0.0.0.0"
+      BIND_IP: "${GAME_BIND_IP:-0.0.0.0}"
       LOG_SQL: ${LOG_SQL:-0}
       DATABASE_AUTOUPDATE_ENABLED: ${DATABASE_AUTOUPDATE_ENABLED:-1}
       LFT_BOTFILL_ENABLE: ${LFT_BOTFILL_ENABLE:-1}

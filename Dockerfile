@@ -12,7 +12,6 @@ FROM ubuntu:${UBUNTU_VERSION} AS builder
 ARG BUILD_PLAYERBOTS=ON
 ARG USE_EXTRACTORS=OFF
 ARG SOURCE_REPO=https://github.com/pjw345/tortoise-wow.git
-ARG SOURCE_REF=playerbots-development
 ARG SOURCE_COMMIT=f2df1b6aff7ea589db4682836d7652ada77f9377
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
@@ -85,12 +84,19 @@ RUN cmake -B build \
 # Keep SQL needed for first-time DB init + AutoUpdate path.
 RUN mkdir -p /opt/turtle/sql \
     && cp -a sql/create_databases.sql sql/base sql/database_updates /opt/turtle/sql/ \
-    && if [ -d modules/mod-playerbots/sql ]; then \
-         mkdir -p /opt/turtle/sql/playerbots \
-         && cp -a modules/mod-playerbots/sql/. /opt/turtle/sql/playerbots/; \
-       elif [ -d src/modules/PlayerBots/sql ]; then \
-         mkdir -p /opt/turtle/sql/playerbots \
-         && cp -a src/modules/PlayerBots/sql/. /opt/turtle/sql/playerbots/; \
+    && mkdir -p /opt/turtle/sql/database_updates/character \
+    && cp -a sql/character_updates/. /opt/turtle/sql/database_updates/character/ \
+    && if [ "${BUILD_PLAYERBOTS}" = "ON" ]; then \
+         if [ -d modules/mod-playerbots/sql ]; then \
+           mkdir -p /opt/turtle/sql/playerbots \
+           && cp -a modules/mod-playerbots/sql/. /opt/turtle/sql/playerbots/; \
+         elif [ -d src/modules/PlayerBots/sql ]; then \
+           mkdir -p /opt/turtle/sql/playerbots \
+           && cp -a src/modules/PlayerBots/sql/. /opt/turtle/sql/playerbots/; \
+         else \
+           echo "BUILD_PLAYERBOTS=ON but playerbots SQL was not found" >&2; \
+           exit 1; \
+         fi; \
        fi
 
 # -----------------------------------------------------------------------------
@@ -146,13 +152,12 @@ COPY --from=builder /opt/turtle /opt/turtle
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/init-db.sh /usr/local/bin/init-db.sh
 COPY docker/render-config.sh /usr/local/bin/render-config.sh
-COPY docker/repair-migrations.sh /usr/local/bin/repair-migrations.sh
 COPY docker/character-inventory-copy.sql /opt/turtle/sql/character-inventory-copy.sql
 
 RUN chmod +x /usr/local/bin/entrypoint.sh \
               /usr/local/bin/init-db.sh \
               /usr/local/bin/render-config.sh \
-              /usr/local/bin/repair-migrations.sh \
+    && touch /opt/turtle/bin/llm_character_card.txt \
     && mkdir -p /opt/turtle/data /opt/turtle/logs /opt/turtle/run /var/lib/turtle-init \
     && chown -R turtle:turtle /opt/turtle /var/lib/turtle-init
 

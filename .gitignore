@@ -3,3 +3,8 @@ data/
 logs/
 *.log
 .DS_Store
+# Local backups and migration artefacts
+/backups/
+/*.sql
+/*.patch
+/config/*.conf

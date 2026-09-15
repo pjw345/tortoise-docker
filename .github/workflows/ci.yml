@@ -50,8 +50,6 @@ jobs:
           build-args: |
             BUILD_PLAYERBOTS=${{ matrix.build_playerbots }}
             USE_EXTRACTORS=OFF
-            SOURCE_REPO=https://github.com/Shyalya/tortoise-wow.git
-            SOURCE_REF=playerbots-integration-gh
             CMAKE_BUILD_TYPE=Release
             CMAKE_INSTALL_PREFIX=/opt/turtle
           cache-from: type=gha,scope=${{ matrix.tag }}
