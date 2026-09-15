@@ -66,9 +66,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       DB_LOGIN: ${DB_LOGIN:-tw_logon}
       REALM_PORT: ${REALM_PORT:-3724}
-      BIND_IP: "${GAME_BIND_IP:-0.0.0.0}"
+      BIND_IP: "0.0.0.0"
     ports:
-      - "${REALM_PORT:-3724}:3724"
+      - "${GAME_BIND_IP:-0.0.0.0}:${REALM_PORT:-3724}:3724"
     command: ["realmd"]
 
   mangosd:
@@ -91,7 +91,7 @@ services:
       DATA_DIR: /opt/turtle/data
       WORLD_PORT: ${WORLD_PORT:-8090}
       REALM_ID: ${REALM_ID:-1}
-      BIND_IP: "${GAME_BIND_IP:-0.0.0.0}"
+      BIND_IP: "0.0.0.0"
       LOG_SQL: ${LOG_SQL:-0}
       DATABASE_AUTOUPDATE_ENABLED: ${DATABASE_AUTOUPDATE_ENABLED:-1}
       LFT_BOTFILL_ENABLE: ${LFT_BOTFILL_ENABLE:-1}
@@ -101,7 +101,7 @@ services:
       AI_MIN_RANDOM_BOTS: ${AI_MIN_RANDOM_BOTS:-10}
       AI_MAX_RANDOM_BOTS: ${AI_MAX_RANDOM_BOTS:-10}
     ports:
-      - "${WORLD_PORT:-8090}:8090"
+      - "${GAME_BIND_IP:-0.0.0.0}:${WORLD_PORT:-8090}:8090"
     volumes:
       - ${DATA_PATH:-./data}:/opt/turtle/data:ro
       - mangosd-logs:/opt/turtle/logs
