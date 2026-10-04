@@ -12,7 +12,7 @@ FROM ubuntu:${UBUNTU_VERSION} AS builder
 ARG BUILD_PLAYERBOTS=ON
 ARG USE_EXTRACTORS=OFF
 ARG SOURCE_REPO=https://github.com/pjw345/tortoise-wow.git
-ARG SOURCE_COMMIT=7e88c6fafaf395f3817c5baade23beb01b1f5206
+ARG SOURCE_COMMIT=7f3cd5e660db013e6d64965621ef77b2666390b1
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG BUILD_JOBS=2
@@ -107,7 +107,7 @@ FROM ubuntu:${UBUNTU_VERSION} AS runtime
 ARG BUILD_PLAYERBOTS=ON
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG CPU_TARGET=x86-64-v2
-ARG SOURCE_COMMIT=7e88c6fafaf395f3817c5baade23beb01b1f5206
+ARG SOURCE_COMMIT=7f3cd5e660db013e6d64965621ef77b2666390b1
 
 LABEL org.opencontainers.image.title="tortoise-docker" \
       org.opencontainers.image.description="Turtle WoW / Tortoise server (realmd + mangosd)" \
