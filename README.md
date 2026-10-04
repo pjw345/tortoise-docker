@@ -23,7 +23,7 @@ This project builds on the work of several related projects:
 * [pjw345/tortoise-wow](https://github.com/pjw345/tortoise-wow) preserves the tested integration source used by this Docker project.
 * The Playerbot implementation originates from [cmangos/playerbots](https://github.com/cmangos/playerbots).
 
-The currently published images build the server from the pinned commit [`f2df1b6`](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377).
+The currently published images build the server from the pinned commit [`7e88c6f`](https://github.com/pjw345/tortoise-wow/tree/7e88c6fafaf395f3817c5baade23beb01b1f5206).
 
 The setup process is demonstrated in this walkthrough:
 
@@ -344,8 +344,8 @@ This project would not exist without the work of the following projects and cont
 * Active Tortoise server project: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
 * Tortoise and Playerbot integration: [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
 * Playerbot project: [cmangos/playerbots](https://github.com/cmangos/playerbots)
-* Tested integration source: [pjw345/tortoise-wow at `f2df1b6`](https://github.com/pjw345/tortoise-wow/tree/f2df1b6aff7ea589db4682836d7652ada77f9377)
-* Installation notes for the tested source: [INSTALL-LINUX.md](https://github.com/pjw345/tortoise-wow/blob/f2df1b6aff7ea589db4682836d7652ada77f9377/INSTALL-LINUX.md)
+* Tested integration source: [pjw345/tortoise-wow at `7e88c6f`](https://github.com/pjw345/tortoise-wow/tree/7e88c6fafaf395f3817c5baade23beb01b1f5206)
+* Installation notes for the tested source: [INSTALL-LINUX.md](https://github.com/pjw345/tortoise-wow/blob/7e88c6fafaf395f3817c5baade23beb01b1f5206/INSTALL-LINUX.md)
 
 All original copyright notices and project licences remain applicable.
 
