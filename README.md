@@ -538,3 +538,46 @@ This repository maintains the Docker packaging and deployment integration. The s
 ## Disclaimer
 
 This is an unofficial community project. It is not affiliated with or endorsed by Turtle WoW, Blizzard Entertainment or Microsoft.
+
+
+## Incremental development builds on the Ubuntu VM
+
+The TurtleWoW dashboard uses the local core checkout and the `local-builder`
+stage. The normal self-contained Docker/GHCR build remains the default and
+continues fetching its pinned revision from GitHub.
+
+For normal operation use the dashboard or guarded manager CLI:
+
+```bash
+python3 ~/development/turtlewow-manager/manager.py build
+```
+
+This stops the realm, verifies a cold backup, builds a uniquely tagged image and
+checks its embedded source SHA. Activation and startup remain separate actions.
+The manager supplies `--build-context local-core=PATH` and
+`--build-arg BUILD_SOURCE=local-builder`; no host compiler installation is needed.
+The context must be a complete Git checkout with local objects for the requested
+core and initialized submodule revisions. The builder only reads that checkout.
+
+A locked BuildKit cache retains a single source checkout, CMake build tree and
+object files per platform. Unchanged files retain timestamps; changed source,
+headers and flags trigger the normal dependency rebuild. ccache provides a
+secondary compiler-result cache capped at 3 GB. The complete object tree consumes
+additional disk space. Image packaging still runs when necessary.
+
+The first build populates the cache. Cache eviction/pruning, compiler changes or
+broad header changes can still cause a substantial rebuild. Retain build cache
+during routine image cleanup; it contains no game database or deployment secrets.
+The runtime image keeps the same binaries, SQL, source SHA and entrypoint layout.
+
+Validate the incremental dependency contract without a game/database:
+
+```bash
+docker build --target local-toolchain -t turtlewow-incremental-toolchain:test .
+python3 tests/test_incremental.py turtlewow-incremental-toolchain:test
+docker image rm turtlewow-incremental-toolchain:test
+```
+
+The isolated offline fixture verifies unchanged/documentation-only object reuse,
+single-file and shared-header dependency rebuilds, older revision selection,
+submodule access, compilation failure and missing-source rejection.

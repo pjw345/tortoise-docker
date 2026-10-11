@@ -3,6 +3,8 @@
 # Build-arg BUILD_PLAYERBOTS controls whether the playerbots module is compiled in.
 
 ARG UBUNTU_VERSION=22.04
+# Default remains the self-contained GitHub/CI build. The VM selects local-builder.
+ARG BUILD_SOURCE=builder
 
 # -----------------------------------------------------------------------------
 # Builder
@@ -99,6 +101,32 @@ RUN mkdir -p /opt/turtle/sql \
          fi; \
        fi
 
+# Persistent VM build: source comes from the local committed Git checkout.
+# Cache contents are performance aids only; every build checks the requested SHA.
+FROM ubuntu:${UBUNTU_VERSION} AS local-toolchain
+ENV DEBIAN_FRONTEND=noninteractive TZ=UTC
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates cmake git ccache libace-dev \
+        libboost-all-dev default-libmysqlclient-dev libssl-dev zlib1g-dev \
+        libbz2-dev pkg-config && rm -rf /var/lib/apt/lists/*
+
+FROM local-toolchain AS local-builder
+ARG SOURCE_COMMIT
+ARG BUILD_PLAYERBOTS=ON
+ARG USE_EXTRACTORS=OFF
+ARG CMAKE_BUILD_TYPE=Release
+ARG CMAKE_INSTALL_PREFIX=/opt/turtle
+ARG BUILD_JOBS=2
+ARG CPU_TARGET=x86-64-v2
+ARG TARGETPLATFORM
+COPY docker/build-incremental.sh /usr/local/bin/build-incremental.sh
+RUN --mount=type=bind,from=local-core,target=/local-core \
+    --mount=type=cache,id=turtlewow-native-v1-${TARGETPLATFORM},target=/native-cache,sharing=locked \
+    bash /usr/local/bin/build-incremental.sh
+
+# Both build paths supply the same runtime files and image layout.
+FROM ${BUILD_SOURCE} AS selected-builder
+
 # -----------------------------------------------------------------------------
 # Runtime
 # -----------------------------------------------------------------------------
@@ -148,7 +176,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --gid 1000 turtle \
     && useradd --uid 1000 --gid turtle --home-dir /opt/turtle --shell /usr/sbin/nologin turtle
 
-COPY --from=builder /opt/turtle /opt/turtle
+COPY --from=selected-builder /opt/turtle /opt/turtle
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/init-db.sh /usr/local/bin/init-db.sh
 COPY docker/render-config.sh /usr/local/bin/render-config.sh
