@@ -1,0 +1,17 @@
+name: Incremental build regression
+on:
+  push:
+    paths: [Dockerfile, 'docker/build-incremental.sh', 'tests/test_incremental.py', '.github/workflows/incremental.yml']
+  pull_request:
+    paths: [Dockerfile, 'docker/build-incremental.sh', 'tests/test_incremental.py', '.github/workflows/incremental.yml']
+permissions:
+  contents: read
+jobs:
+  dependency-rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n docker/build-incremental.sh
+      - run: docker build --target local-toolchain -t turtlewow-incremental-toolchain:test .
+      - run: python3 tests/test_incremental.py turtlewow-incremental-toolchain:test

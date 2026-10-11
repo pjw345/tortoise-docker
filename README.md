@@ -538,3 +538,80 @@ This repository maintains the Docker packaging and deployment integration. The s
 ## Disclaimer
 
 This is an unofficial community project. It is not affiliated with or endorsed by Turtle WoW, Blizzard Entertainment or Microsoft.
+
+
+## Incremental development builds on the Ubuntu VM
+
+The TurtleWoW dashboard uses the local core checkout and the `local-builder`
+stage. The normal self-contained Docker/GHCR build remains the default and
+continues fetching its pinned revision from GitHub.
+
+For normal operation use the dashboard or guarded manager CLI:
+
+```bash
+python3 ~/development/turtlewow-manager/manager.py build
+```
+
+This stops the realm, verifies a cold backup, builds a uniquely tagged image and
+checks its embedded source SHA. Activation and startup remain separate actions.
+The manager supplies `--build-context local-core=PATH` and
+`--build-arg BUILD_SOURCE=local-builder`; no host compiler installation is needed.
+The context must be a complete Git checkout with local objects for the requested
+core and initialized submodule revisions. The builder only reads that checkout.
+
+A locked BuildKit cache retains a single source checkout, CMake build tree and
+object files per platform. Unchanged files retain timestamps; changed source,
+headers and flags trigger the normal dependency rebuild. ccache provides a
+secondary compiler-result cache capped at 3 GB. The complete object tree consumes
+additional disk space. Image packaging still runs when necessary.
+
+The first build populates the cache. Cache eviction/pruning, compiler changes or
+broad header changes can still cause a substantial rebuild. Retain build cache
+during routine image cleanup; it contains no game database or deployment secrets.
+The runtime image keeps the same binaries, SQL, source SHA and entrypoint layout.
+
+Validate the incremental dependency contract without a game/database:
+
+```bash
+docker build --target local-toolchain -t turtlewow-incremental-toolchain:test .
+python3 tests/test_incremental.py turtlewow-incremental-toolchain:test
+docker image rm turtlewow-incremental-toolchain:test
+```
+
+The isolated offline fixture verifies unchanged/documentation-only object reuse,
+single-file and shared-header dependency rebuilds, older revision selection,
+submodule access, compilation failure and missing-source rejection.
+
+
+The core must also keep the changing Git revision out of the bot precompiled
+header. `PlayerbotAIConfig.h` declares the default filename; its platform-specific
+definition and `SystemConfig.h` include live in `PlayerbotAIConfig.cpp`. Older
+core revisions with that include in the shared header legitimately invalidate
+the entire bot PCH on every new commit. Caching cannot bypass that dependency.
+The incremental fixture includes PCH consumers and private revision metadata.
+
+
+### Build cache retention on this VM
+
+The retained native tree currently occupies about 18 GB (objects, archives, PCH,
+source and compiler results). The compiler-result subdirectory alone is capped
+at 3 GB. Docker's default GC can remove cache mounts after 48 hours; default
+image cleanup is not sufficient to preserve an incremental baseline.
+
+Our VM uses a custom Docker daemon GC policy restricted to `type=regular`, so
+native `exec.cachemount` records are preserved. It reserves 12 GB of layer cache,
+uses a 30 GB cache ceiling and a 25 GB free-space target for eligible cleanup.
+Protected mounts are additional non-prunable data, so those thresholds do not
+guarantee a total disk cap. Monitor VM disk space; deleting build cache explicitly
+requires a later full compilation. Scheduled server-image cleanup stays enabled.
+
+The example `deploy/docker-builder-gc.json` in turtlewow-manager contains only
+the builder settings. Merge them into an existing `/etc/docker/daemon.json`,
+preserving logging and other settings. Choose limits appropriate to your disk.
+Validate with `sudo dockerd --validate --config-file /etc/docker/daemon.json`.
+Applying builder GC changes requires restarting Docker while the realm is stopped
+and no manager operation is running; SIGHUP does not update builder GC. Confirm
+the actual filters/limits with `docker buildx inspect --bootstrap` afterward.
+For this installed Docker version the filter is the positive `type=regular`;
+a negative `type!=...` daemon filter is not translated into a BuildKit filter.
+See [Docker GC documentation](https://docs.docker.com/build/cache/garbage-collection/).
