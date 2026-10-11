@@ -581,3 +581,11 @@ docker image rm turtlewow-incremental-toolchain:test
 The isolated offline fixture verifies unchanged/documentation-only object reuse,
 single-file and shared-header dependency rebuilds, older revision selection,
 submodule access, compilation failure and missing-source rejection.
+
+
+The core must also keep the changing Git revision out of the bot precompiled
+header. `PlayerbotAIConfig.h` declares the default filename; its platform-specific
+definition and `SystemConfig.h` include live in `PlayerbotAIConfig.cpp`. Older
+core revisions with that include in the shared header legitimately invalidate
+the entire bot PCH on every new commit. Caching cannot bypass that dependency.
+The incremental fixture includes PCH consumers and private revision metadata.
